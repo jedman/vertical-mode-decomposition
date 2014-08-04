@@ -1,5 +1,8 @@
 # this is a library for calculating the normal mode decomposition of vertical profiles of 
 # atmospheric variables. 
+#depends on numpy 
+import numpy as np 
+
 def brunt_vaisala(thetav_prof, z):
     '''construct N^2 = -g/thetav d/dz(thetav)  on the interface levels'''
     N_sq_prof = np.zeros(len(z)+1)
