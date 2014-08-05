@@ -3,16 +3,6 @@
 #depends on numpy 
 import numpy as np 
 
-def brunt_vaisala(thetav_prof, z):
-    '''construct N^2 = -g/thetav d/dz(thetav)  on the interface levels'''
-    N_sq_prof = np.zeros(len(z)+1)
-    ggr = 9.81
-    thetav_int = scale2int(thetav_prof,z)
-    for i in range(1,len(z)):
-        N_sq_prof[i] = ggr/thetav_int[i] * (thetav_prof[i]-thetav_prof[i-1])/(z[i]-z[i-1])
-    N_sq_prof[len(z)] = N_sq_prof[len(z)-1] 
-    N_sq_prof[0] = N_sq_prof[1]
-    return N_sq_prof 
 def find_vertical_modes(N_sq, zi_full, rigidlid = []):
        '''solve the vertical structure equation d^2/dz^2 W = -\lambda N_sq W \
        and return set of eigenfunctions W_n and eigenvalues \lambda_n. 
@@ -42,8 +32,10 @@ def find_vertical_modes(N_sq, zi_full, rigidlid = []):
     M[-1,-2] = 1./(zi[-1]-zi[-2]) 
     M[-1,:] = 1./(Nsqgrd[-1])*2./(lid -zi[-2])*M[-1,:]
     
-    c_w, Z_w = np.linalg.eig(-M) 
-    return (c_w,Z_w, zi)
+    c_w, Z_w = np.linalg.eig(-M)
+    X = zip(C,W.transpose())
+    X_sort = sorted(X,key=lambda val: val[0]) # sort by eigenvalue
+    return (X_sort, zi)
 
 def innerproduct(EIGS,NSQ,ZP,val1,val2):
     ''' calculate the inner product of vertical normal modes val1 and val2 '''
@@ -68,7 +60,33 @@ def project_onto_vertical(var_profile, EIGS, NSQ, ZP,mode):
     for i in range(1,len(ZP)):
         coeff = coeff + eigvec[i]*var_profile[i]*NSQ[i]*(ZP[i]-ZP[i-1])
     projection = coeff*eigvec
-    return projection 
+    return projection
+
+def projection_coeff(var_profile, EIGS, NSQ, ZP,mode):
+    '''return the coefficient to
+    project an observed profile onto eigenfunction *mode* '''
+    eigvec=EIGS[mode][1][:]
+    normed_eig = normalize(EIGS,NSQ,ZP, mode)
+    eigvec = normed_eig
+    coeff = eigvec[0]*var_profile[0]*NSQ[0]*(ZP[0])
+    for i in range(1,len(ZP)):
+        coeff = coeff + eigvec[i]*var_profile[i]*NSQ[i]*(ZP[i]-ZP[i-1])
+    #projection = coeff*eigvec
+    return coeff  
+
+#### utilities #####
+
+def brunt_vaisala(thetav_prof, z):
+    '''construct N^2 = -g/thetav d/dz(thetav)  on the interface levels'''
+    N_sq_prof = np.zeros(len(z)+1)
+    ggr = 9.81
+    thetav_int = scale2int(thetav_prof,z)
+    for i in range(1,len(z)):
+        N_sq_prof[i] = ggr/thetav_int[i] * (thetav_prof[i]-thetav_prof[i-1])/(z[i]-z[i-1])
+    N_sq_prof[len(z)] = N_sq_prof[len(z)-1]
+    N_sq_prof[0] = N_sq_prof[1]
+    return N_sq_prof
+
 
 def make_zi_full(z):
     '''makes a vector of grid interfaces vector (including top and bottom)  from z on the scalar levels '''
