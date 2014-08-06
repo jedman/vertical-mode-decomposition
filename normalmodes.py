@@ -2,17 +2,18 @@
 # atmospheric variables. 
 #depends on numpy 
 import numpy as np 
+from vstats import * 
 
-def find_vertical_modes(N_sq, zi_full, rigidlid = []):
-       '''solve the vertical structure equation d^2/dz^2 W = -\lambda N_sq W \
-       and return set of eigenfunctions W_n and eigenvalues \lambda_n. 
-        N_sq is the brunt-vaisala frequency, zi_full includes top and bottom interfaces;  
-       kwarg *rigidlid* is the height in z of the rigid lid.''' 
+def get_vertical_modes(N_sq, zi_full, rigidlid = []):
+    '''solve the vertical structure equation d^2/dz^2 W = -\lambda N_sq W \
+    and return set of eigenfunctions W_n and eigenvalues \lambda_n. 
+    N_sq is the brunt-vaisala frequency, zi_full includes top and bottom interfaces;  
+    kwarg *rigidlid* is the height in z of the rigid lid.''' 
     if(rigidlid):
         lid = rigidlid
     else: 
         lid = zi_full[-1]
-        
+   
     index = np.where((zi_full<lid) & (zi_full>0))
     zi = zi_full[index]
     Nsqgrd= N_sq[index]
@@ -33,24 +34,32 @@ def find_vertical_modes(N_sq, zi_full, rigidlid = []):
     M[-1,:] = 1./(Nsqgrd[-1])*2./(lid -zi[-2])*M[-1,:]
     
     c_w, Z_w = np.linalg.eig(-M)
-    X = zip(C,W.transpose())
+    X = zip(c_w,Z_w.transpose())
     X_sort = sorted(X,key=lambda val: val[0]) # sort by eigenvalue
     return (X_sort, zi)
 
-def make_projection(var_profile, EIGS, NSQ, ZP):
+def get_projections(var_profile, EIGS, NSQ, ZP):
+    '''project a given profile(prof), onto eigenvalues(EIGS) found using NSQ on grid ZP. 
+    returns projection'''
+    w_proj = []
+    trunc = EIGS[0][1].shape[0]
+    for i in range(0,trunc): 
+         w_proj.append(project_onto_vertical(var_profile, EIGS,NSQ,ZP,i))
+    return w_proj
+def get_projection_coeffs(var_profile, EIGS, NSQ, ZP):
     '''project a given profile(prof), onto eigenvalues(EIGS) found using NSQ on grid ZP. 
     returns projection coefficients'''
     w_proj_coeffs = []
-    trunc = EIGS[0][1].shape
+    trunc = EIGS[0][1].shape[0]
     for i in range(0,trunc): 
          w_proj_coeffs.append(projection_coeff(var_profile, EIGS,NSQ,ZP,i))
-    return (w_proj_coeffs)
+    return w_proj_coeffs
 
-def phase_speeds(EIGS):
+def get_phase_speeds(EIGS):
     '''calculates phase speeds from eigenvalues contained in list EIGS, 
     c = 1/np.sqrt(EIGS[i][0])'''
     speeds=[]
-    trunc = EIGS[0][1].shape
+    trunc = EIGS[0][1].shape[0]
     for i in range(0,trunc):
         speeds.append(1./np.sqrt(EIGS[i][0]))
     return speeds
@@ -130,4 +139,5 @@ def plot_projection(projection,ZP,speeds,w_proj_coeffs, n=7):
     ax2.set_xlabel('c (m/s)')
     ax1.set_title('vertical mode projection')
     ax2.set_title('projection coefficient vs. c')
+    ax1.legend()
     return fig 
