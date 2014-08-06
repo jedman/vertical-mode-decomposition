@@ -37,6 +37,24 @@ def find_vertical_modes(N_sq, zi_full, rigidlid = []):
     X_sort = sorted(X,key=lambda val: val[0]) # sort by eigenvalue
     return (X_sort, zi)
 
+def make_projection(var_profile, EIGS, NSQ, ZP):
+    '''project a given profile(prof), onto eigenvalues(EIGS) found using NSQ on grid ZP. 
+    returns projection coefficients'''
+    w_proj_coeffs = []
+    trunc = EIGS[0][1].shape
+    for i in range(0,trunc): 
+         w_proj_coeffs.append(projection_coeff(var_profile, EIGS,NSQ,ZP,i))
+    return (w_proj_coeffs)
+
+def phase_speeds(EIGS):
+    '''calculates phase speeds from eigenvalues contained in list EIGS, 
+    c = 1/np.sqrt(EIGS[i][0])'''
+    speeds=[]
+    trunc = EIGS[0][1].shape
+    for i in range(0,trunc):
+        speeds.append(1./np.sqrt(EIGS[i][0]))
+    return speeds
+    
 def innerproduct(EIGS,NSQ,ZP,val1,val2):
     ''' calculate the inner product of vertical normal modes val1 and val2 '''
     tot = EIGS[val1][1][0]*EIGS[val2][1][0]*NSQ[0]*(ZP[0])
@@ -96,4 +114,20 @@ def make_zi_full(z):
     zi_full[len(z)]= zi_full[len(z)-1] + (z[len(z)-1]-zi_full[len(z)-2])
     return zi_full 
 
-
+def plot_projection(projection,ZP,speeds,w_proj_coeffs, n=7):
+    '''plot the first n components of the projection against grid ZP
+    and the phase speeds vs the projection coefficient'''
+    if (n>len(projection)):
+        n=len(projection)
+        print 'sorry,n=',n,'exceeds number of eigenfunctions',len(projection) 
+        raise ValueError
+    fig, (ax1,ax2) = plt.subplots(1,2, figsize=(10,3), sharey=False)
+    i = 0 
+    for p in projection[0:n]: 
+        ax1.plot(p,ZP, label='mode '+str(i), lw=2)
+        i+=1
+    ax2.scatter(speeds[0:trunc],np.abs(w_proj_coeffs), marker = 'o')
+    ax2.set_xlabel('c (m/s)')
+    ax1.set_title('vertical mode projection')
+    ax2.set_title('projection coefficient vs. c')
+    return fig 
