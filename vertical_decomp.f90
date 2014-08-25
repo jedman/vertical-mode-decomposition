@@ -1,5 +1,9 @@
 program vertical_mode_decomp
-use normalmodes
+   
+   use normalmodes
+
+implicit none
+
 integer, parameter :: nzm = 30
 integer, i,j 
 real, dimension(:,:), allocatable, private :: Nddz, W
