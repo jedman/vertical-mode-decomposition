@@ -12,7 +12,7 @@ real, dimension(:), allocatable :: Eigvals, z, dz_vector, N_sq, theta_prof, zi, 
 integer :: ncid, ThetaVarID, ZVarID, ZiVarID, ZiVarID2, NVarID, ncid_out, DZVarID, DZIVarID
 integer :: zdimid, zidimid, zidimid2 
 integer, dimension(nf90_max_var_dims) :: ZDimIDs
-
+integer, dimension(2) :: zdims
 ! output file params 
 character (len = *), parameter :: OUT_FILE = 'vmd_out.nc' 
 
@@ -36,6 +36,7 @@ call check( nf90_close(ncid) )
 
 ! make N_sq and the z interface vector
 N_sq = brunt_vaisala(theta_prof, z, nzm) 
+N_sq = 0.0001 ! constant N_sq for testing
 !call make_zi(z , nzm, zi) 
 zi = zi_locs(z, nzm) ! length nzm - 1 
 dzi_vector = make_dzi(z,nzm) ! length nz + 1
@@ -51,14 +52,35 @@ zi2(nzm + 1) = zi(nzm-1) + dzi_vector(nzm)
           exit
        end if
  end do
-print *, 'Lid is at', LID_HEIGHT,'; interface level below lid is', zi(lidindex)
+
+print *, 'Lid is at', LID_HEIGHT,'; interface level below lid is', zi(lidindex-1), & 
+ 'lid index is', i
 ! test eigenvector subroutine
-!call get_vertical_modes(N_sq, zi, nzm, LID_HEIGHT, Modes, Eigvals) 
-!allocate(Modes(nzm, nzm), Eigvals(nzm))
+! There's something inconsistent about how I've defined the z levels
+! I think it has to do with N_sq not including the bottom interface? 
+! At any rate, I'm ending up with undefined values bounding the eigen vector matrix
+! I should write out NDDZ instead to check
 allocate(Modes(lidindex, lidindex), Eigvals(lidindex))
-call get_vertical_modes(N_sq, zi, lidindex, Modes, Eigvals) 
+call get_vertical_modes(N_sq, zi, dz_vector, lidindex, Modes, Eigvals) 
+
+Eigvals = 1./(sqrt(-Eigvals))
+
+call check( nf90_create('eig_vecs.nc', NF90_CLOBBER,  ncid_out) )
+call check( nf90_def_dim(ncid_out, 'zi', lidindex, zidimid))
+call check( nf90_def_dim(ncid_out, 'zi_alt', lidindex, zdimid)) 
+zdims =(/ zidimid, zdimid/)
+call check( nf90_def_var(ncid_out, 'zi', NF90_FLOAT, zidimid, ZiVarID)) 
+call check( nf90_def_var(ncid_out, 'eigenvectors', NF90_FLOAT, zdims, NVarID))
+call check(nf90_enddef(ncid_out)) 
+call check(nf90_put_var(ncid_out, ZiVarID, zi(1:lidindex)))
+call check(nf90_put_var(ncid_out, NVarID, Modes)) 
+call check(nf90_close(ncid_out)) 
+
+
+
 
 ! Create output file with N_sq to test
+
 call check( nf90_create( OUT_FILE, NF90_CLOBBER, ncid_out)) 
 call check( nf90_def_dim(ncid_out, "zi", nzm-1, zidimid))
 call check( nf90_def_dim(ncid_out, "z", nzm, zdimid)) 

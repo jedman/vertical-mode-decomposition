@@ -1,8 +1,8 @@
-NETCDF_DIR = /usr/local
+NETCDF_DIR = /usr/
 NETCDF_LIB = ${NETCDF_DIR}/lib
 NETCDF_INC = ${NETCDF_DIR}/include
 
-LDFLAGS = -lnetcdf -lnetcdff
+LDFLAGS = -lnetcdf -lnetcdff -llapack -lblas
 
 all: ./vmd 
 

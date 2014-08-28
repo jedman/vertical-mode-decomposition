@@ -2,11 +2,11 @@ module normalmodes
 implicit none
 
 contains
-  subroutine get_vertical_modes(N_sq, zi, lidindex, EIG_VECS, EIG_VALS) 
+  subroutine get_vertical_modes(N_sq, zi, dz_vector, lidindex, EIG_VECS, EIG_VALS) 
     implicit none 
 
     !in  
-    real, dimension(:), intent(in) :: N_sq, zi 
+    real, dimension(:), intent(in) :: N_sq, dz_vector, zi
     integer, intent(in) :: lidindex
     !out 
     real, dimension(lidindex, lidindex), intent(out) :: EIG_VECS
@@ -14,13 +14,13 @@ contains
     ! internal 
     real, dimension(lidindex, lidindex) :: NDDZ 
     integer :: i, j 
-    real, parameter :: LID_HT = 16500. ! would be better to get this from call?  
+    real, parameter :: LID_HEIGHT = 16500. ! would be better to get this from call?  
     ! initialize EIG and N arrays
     EIG_VECS = 0. 
     EIG_VALS = 0. 
     NDDZ = 0.
     
-   ! maybe to rewrite in terms of dz_vector?      
+!    maybe to rewrite in terms of dz_vector?      
     do i = 2, lidindex-1
         NDDZ(i, i) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i)) - 1./(zi(i)-zi(i-1)))
         NDDZ(i, i-1) = 1./N_sq(i) * (-1./(zi(i) - zi(i-1)))
@@ -33,11 +33,76 @@ contains
     NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(i, 1:lidindex)
     NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (1./(zi(lidindex+1) - zi(lidindex))- 1./(zi(lidindex)-zi(lidindex-1)))
     NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (-1./(zi(lidindex) - zi(lidindex-1))) 
-    NDDZ(lidindex, 1:lidindex) = 2./(LID_HT - zi(lidindex-1)) * NDDZ(i, 1:lidindex)
+    NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(i, 1:lidindex)
+!
+!I'm pretty sure the problem (at least part of it) is that dz_vector is offset from 
+! zi by one, because zi (as defined here) doesn't include the lower interface    
+!     do i = 2, lidindex-1
+!         NDDZ(i, i) = 1./N_sq(i) * (-1./(dz_vector(i+1)) - 1./(dz_vector(i)))
+!         NDDZ(i, i-1) = 1./N_sq(i) * (-1./dz_vector(i))
+!         NDDZ(i, i+1) = 1./N_sq(i) * (-1./dz_vector(i+1)) 
+!         NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
+!     end do
+!     NDDZ(1, 1) = 1./N_sq(1) * (-1./(dz_vector(2)) - 1./(dz_vector(1)))
+!     NDDZ(1, 2) = 1/N_sq(1) * (-1./(dz_vector(2)))
+!     NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(i, 1:lidindex)
+!     NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(dz_vector(lidindex+1) ) &
+!          - 1./(dz_vector(lidindex)))
+!     NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (-1./(dz_vector(lidindex) )) 
+!     NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(i, 1:lidindex)
+    
+  call get_eigs(NDDZ, lidindex, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
+      !for testing purposes
+    !EIG_VECS = NDDZ
 
     
   end subroutine get_vertical_modes
-   
+
+  subroutine get_eigs(NDDZ,lidindex, egvecs, egvals)
+  ! this is a wrapper for the LAPACK routine SGEEV, which
+  ! computes the eigenvalues and eigenvectors for a nonsymmetric
+  ! matrix A. 
+  real, dimension(:,:), intent(in) :: NDDZ
+  integer, intent(in) :: lidindex
+  ! out 
+  real, dimension(lidindex, lidindex) :: egvecs
+  real, dimension(lidindex) :: egvals 
+  
+  character(1) :: jobvl, jobvr
+  integer :: n,lda, info ! order of NDDZ (columns), lda is rows
+  integer :: ldvr, ldvl  ! number of r/l eigenvectors to compute? 
+  real, dimension(lidindex, lidindex) :: A ! copy of NDDZ 
+  real, dimension(lidindex) :: WR, WI ! real and imaginary parts of egvals
+  real, dimension(lidindex, lidindex) :: VL, VR
+  integer :: lwork  ! size of workspace 
+  real, dimension(:), allocatable :: WORK ! workspace
+
+     external SGEEV ! procedure defined in LAPACK 
+
+    lwork = lidindex*lidindex
+    allocate(WORK(lwork)) 
+
+    A = NDDZ ! make a copy so SGEEV doesn't overwrite
+    n = size(A,1) 
+    lda = size(A,2) 
+    ldvr = size(A,1) 
+    ldvl = size(A,1) ! same as lidindex
+    WR = 0. 
+    WI = 0. 
+    VL = 0. 
+    VR = 0. 
+    info = 0. 
+    jobvl = 'N'
+    jobvr = 'V' ! compute right eigenvectors only 
+    
+
+      call SGEEV (jobvl, jobvr, n, A, lda, WR, WI, VL, ldvl, &
+         VR, ldvr, WORK, lwork, info) 
+  egvecs = VR 
+  egvals = WR 
+  deallocate(WORK)
+
+  end subroutine get_eigs   
   function brunt_vaisala(theta_prof,z, nzm) result(N_sq)  
       !in 
       real, dimension(:), intent(in) :: theta_prof
