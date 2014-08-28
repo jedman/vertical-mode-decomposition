@@ -23,17 +23,17 @@ contains
 !    maybe to rewrite in terms of dz_vector?      
     do i = 2, lidindex-1
         NDDZ(i, i) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i)) - 1./(zi(i)-zi(i-1)))
-        NDDZ(i, i-1) = 1./N_sq(i) * (-1./(zi(i) - zi(i-1)))
-        NDDZ(i, i+1) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i))) 
+        NDDZ(i, i-1) = 1./N_sq(i) * (1./(zi(i) - zi(i-1)))
+        NDDZ(i, i+1) = 1./N_sq(i) * (1./(zi(i+1) - zi(i))) 
         NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
     end do
   
     NDDZ(1, 1) = 1./N_sq(1) * (-1./(zi(2) - zi(1)) - 1./(zi(1)-0.))
-    NDDZ(1, 2) = 1/N_sq(1) * (-1./(zi(2) - zi(1)))
-    NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(i, 1:lidindex)
-    NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (1./(zi(lidindex+1) - zi(lidindex))- 1./(zi(lidindex)-zi(lidindex-1)))
-    NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (-1./(zi(lidindex) - zi(lidindex-1))) 
-    NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(i, 1:lidindex)
+    NDDZ(1, 2) = 1./N_sq(1) * (1./(zi(2) - zi(1)))
+    NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(1, 1:lidindex)
+    NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(zi(lidindex+1) - zi(lidindex))- 1./(zi(lidindex)-zi(lidindex-1)))
+    NDDZ(lidindex,lidindex-1) = -1./N_sq(lidindex) * (-1./(zi(lidindex) - zi(lidindex-1))) 
+    NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(lidindex, 1:lidindex)
 !
 !I'm pretty sure the problem (at least part of it) is that dz_vector is offset from 
 ! zi by one, because zi (as defined here) doesn't include the lower interface    
@@ -44,45 +44,44 @@ contains
 !         NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
 !     end do
 !     NDDZ(1, 1) = 1./N_sq(1) * (-1./(dz_vector(2)) - 1./(dz_vector(1)))
-!     NDDZ(1, 2) = 1/N_sq(1) * (-1./(dz_vector(2)))
-!     NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(i, 1:lidindex)
+!     NDDZ(1, 2) = 1./N_sq(1) * (-1./(dz_vector(2)))
+!     NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(1, 1:lidindex)
 !     NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(dz_vector(lidindex+1) ) &
 !          - 1./(dz_vector(lidindex)))
 !     NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (-1./(dz_vector(lidindex) )) 
-!     NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(i, 1:lidindex)
-    
-  call get_eigs(NDDZ, lidindex, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
+!     NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(lidindex, 1:lidindex)
+!   NDDZ = TRANSPOSE(NDDZ)  
+  call get_eigs(NDDZ, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
       !for testing purposes
-    !EIG_VECS = NDDZ
-
+    ! EIG_VECS = NDDZ
+   print *, EIG_VECS(33,:) 
     
   end subroutine get_vertical_modes
 
-  subroutine get_eigs(NDDZ,lidindex, egvecs, egvals)
-  ! this is a wrapper for the LAPACK routine SGEEV, which
+  subroutine get_eigs(NDDZ, egvecs, egvals)
+  ! this is a wrapper for the LAPACK routine DGEEV, which
   ! computes the eigenvalues and eigenvectors for a nonsymmetric
   ! matrix A. 
   real, dimension(:,:), intent(in) :: NDDZ
-  integer, intent(in) :: lidindex
   ! out 
-  real, dimension(lidindex, lidindex) :: egvecs
-  real, dimension(lidindex) :: egvals 
+  real, dimension(size(NDDZ,1), size(NDDZ,2)) :: egvecs
+  real, dimension(size(NDDZ,1)) :: egvals 
   
   character(1) :: jobvl, jobvr
   integer :: n,lda, info ! order of NDDZ (columns), lda is rows
   integer :: ldvr, ldvl  ! number of r/l eigenvectors to compute? 
-  real, dimension(lidindex, lidindex) :: A ! copy of NDDZ 
-  real, dimension(lidindex) :: WR, WI ! real and imaginary parts of egvals
-  real, dimension(lidindex, lidindex) :: VL, VR
+  real, dimension(size(NDDZ,1), size(NDDZ,2)) :: A ! copy of NDDZ 
+  real, dimension(size(NDDZ,1)) :: WR, WI ! real and imaginary parts of egvals
+  real, dimension(size(NDDZ, 1), size(NDDZ,2)) :: VL, VR
   integer :: lwork  ! size of workspace 
   real, dimension(:), allocatable :: WORK ! workspace
 
-     external SGEEV ! procedure defined in LAPACK 
+     external DGEEV ! procedure defined in LAPACK 
 
-    lwork = lidindex*lidindex
+    lwork = size(NDDZ,1)*20  
     allocate(WORK(lwork)) 
 
-    A = NDDZ ! make a copy so SGEEV doesn't overwrite
+    A = NDDZ ! make a copy so DGEEV doesn't overwrite
     n = size(A,1) 
     lda = size(A,2) 
     ldvr = size(A,1) 
@@ -96,8 +95,13 @@ contains
     jobvr = 'V' ! compute right eigenvectors only 
     
 
-      call SGEEV (jobvl, jobvr, n, A, lda, WR, WI, VL, ldvl, &
-         VR, ldvr, WORK, lwork, info) 
+      call DGEEV (jobvl, jobvr, n, A, lda, WR, WI, VL, ldvl, &
+         VR, ldvr, WORK, lwork, info)
+   if(info .eq. 0) then 
+     print *, 'Everything from LAPACK is A-OK' 
+    else 
+     print *, 'uh-oh!'
+   end if   
   egvecs = VR 
   egvals = WR 
   deallocate(WORK)
