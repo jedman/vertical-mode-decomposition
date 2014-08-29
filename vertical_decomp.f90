@@ -59,7 +59,7 @@ print *, 'Lid is at', LID_HEIGHT,'; interface level below lid is', zi(lidindex),
 allocate(Modes(lidindex, lidindex), Eigvals(lidindex))
 call get_vertical_modes(N_sq, zi, dz_vector, lidindex, Modes, Eigvals) 
 
-Eigvals = 1./(sqrt(-Eigvals))
+!Eigvals = 1./(sqrt(-Eigvals))
 
 call check( nf90_create('eig_vecs.nc', NF90_CLOBBER,  ncid_out) )
 call check( nf90_def_dim(ncid_out, 'zi', lidindex, zidimid))

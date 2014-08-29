@@ -1,26 +1,33 @@
+!!!! written by Jacob Edman, 2014 !!!!
+! This module contains subroutines for calculating    !
+! vertical normal modes in a stratified atmosphere.   ! 
+
 module normalmodes
 implicit none
 
 contains
-  subroutine get_vertical_modes(N_sq, zi, dz_vector, lidindex, EIG_VECS, EIG_VALS) 
+  subroutine get_vertical_modes(N_sq, zi, dz_vector, lidindex, EIG_VECS_sorted, speeds) 
+    use quicksort_mod 
     implicit none 
 
     !in  
     real, dimension(:), intent(in) :: N_sq, dz_vector, zi
     integer, intent(in) :: lidindex
     !out 
-    real, dimension(lidindex, lidindex), intent(out) :: EIG_VECS
-    real, dimension(lidindex), intent(out) :: EIG_VALS 
+    real, dimension(lidindex, lidindex), intent(out) :: EIG_VECS_sorted
+    real, dimension(lidindex), intent(out) :: speeds  
     ! internal 
-    real, dimension(lidindex, lidindex) :: NDDZ 
+    integer, dimension(lidindex) :: eindex 
+    real, dimension(lidindex) :: EIG_VALS   
+    real, dimension(lidindex, lidindex) :: NDDZ, EIG_VECS 
     integer :: i, j 
     real, parameter :: LID_HEIGHT = 16500. ! would be better to get this from call?  
     ! initialize EIG and N arrays
     EIG_VECS = 0. 
     EIG_VALS = 0. 
     NDDZ = 0.
-    
-!    maybe to rewrite in terms of dz_vector?      
+    eindex = 0. 
+!    maybe best to rewrite in terms of dz_vector?      
     do i = 2, lidindex-1
         NDDZ(i, i) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i)) - 1./(zi(i)-zi(i-1)))
         NDDZ(i, i-1) = 1./N_sq(i) * (1./(zi(i) - zi(i-1)))
@@ -54,9 +61,43 @@ contains
   call get_eigs(NDDZ, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
       !for testing purposes
     ! EIG_VECS = NDDZ
-   print *, EIG_VECS(33,:) 
-    
+   !print *, EIG_VECS(:,33) ! print the eigenvector associated with Eigenvalue 33  
+   ! print *, EIG_VALS(33)
+   ! print *, 1./sqrt(-EIG_VALS(33))
+    speeds = 1./sqrt(abs(EIG_VALS))
+    EIG_VECS_sorted = 0. ! not sorted yet
+    call quicksort(speeds, eindex)  
+    EIG_VECS_sorted = EIG_VECS(:, eindex) 
+    !call sort_eigs(EIG_VECS, EIG_VALS, speeds, EIG_VECS_sorted) 
+     
+    ! EIG_VALS = speeds 
   end subroutine get_vertical_modes
+
+  subroutine  sort_eigs(egvecs, egvals, speeds, egvecs_sorted) 
+    implicit none
+    ! in 
+    real, dimension(:,:), intent(in) :: egvecs
+    real, dimension(:), intent(in) :: egvals
+    
+    !out
+    real, dimension(size(egvals)) :: speeds 
+    real, dimension(size(egvecs,1),size(egvecs,2)) :: egvecs_sorted
+    real, dimension(size(egvecs,1), size(egvals)+1) :: TEMP, TEMP2   
+    integer :: i,k 
+    integer :: egsize
+    
+    ! assign values to egsize and temp array (both egvals and egvecs)  
+    egsize = size(egvals) 
+
+    TEMP(1:egsize,1:egsize) = egvecs 
+    !TEMP(1:egsize, egsize +1) = 1./np.sqrt(abs(egvals(:)) 
+    TEMP2 = TEMP  
+     
+    ! now sort rows based on last column (index egsize +1)  
+    ! this is heavily borrowed from quicksort_mod (DAM) 
+    ! actually, maybe just try quicksortmod 
+         
+  end subroutine sort_eigs 
 
   subroutine get_eigs(NDDZ, egvecs, egvals)
   ! this is a wrapper for the LAPACK routine DGEEV, which
@@ -106,7 +147,11 @@ contains
   egvals = WR 
   deallocate(WORK)
 
-  end subroutine get_eigs   
+  end subroutine get_eigs  
+
+! these are utility functions for calculating various things 
+! required for the vertical mode decomposition 
+ 
   function brunt_vaisala(theta_prof,z, nzm) result(N_sq)  
       !in 
       real, dimension(:), intent(in) :: theta_prof
