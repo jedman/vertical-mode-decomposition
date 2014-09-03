@@ -4,40 +4,6 @@
 import numpy as np 
 from vstats import * 
 
-def get_vertical_modes(N_sq, zi_full, rigidlid = []):
-    '''solve the vertical structure equation d^2/dz^2 W = -\lambda N_sq W \
-    and return set of eigenfunctions W_n and eigenvalues \lambda_n. 
-    N_sq is the brunt-vaisala frequency, zi_full includes top and bottom interfaces;  
-    kwarg *rigidlid* is the height in z of the rigid lid.''' 
-    if(rigidlid):
-        lid = rigidlid
-    else: 
-        lid = zi_full[-1]
-   
-    index = np.where((zi_full<lid) & (zi_full>0))
-    zi = zi_full[index]
-    Nsqgrd= N_sq[index]
-    #set up matrix for interface levels 
-    M = np.zeros((len(zi), len(zi))) 
-    for i in range(1,len(zi)-1):
-        M[i,i] =  -1./(zi[i+1]-zi[i]) - 1./(zi[i]-zi[i-1]) 
-        M[i,i-1] = 1./(zi[i]-zi[i-1])
-        M[i,i+1] = 1./(zi[i+1]-zi[i])
-        M[i,:] = 1./(Nsqgrd[i])*2./(zi[i+1]-zi[i-1])*M[i,:]
-        
-    #boundary conditions
-    M[0,0] = -1./(zi[1]-zi[0]) - 1./(zi[0]-0.)
-    M[0,1] = 1./(zi[1]-zi[0]) 
-    M[0,:] = 1./(Nsqgrd[0])*2./(zi[1]-0.)*M[0,:]
-    M[-1,-1] = - 1./(lid - zi[-1]) - 1./(zi[-1]-zi[-2]) 
-    M[-1,-2] = 1./(zi[-1]-zi[-2]) 
-    M[-1,:] = 1./(Nsqgrd[-1])*2./(lid -zi[-2])*M[-1,:]
-    
-    c_w, Z_w = np.linalg.eig(-M)
-    X = zip(c_w,Z_w.transpose())
-    X_sort = sorted(X,key=lambda val: val[0]) # sort by eigenvalue
-    return (X_sort, zi)
-
 def get_vertical_modes_comp(N_sq,rhoz,z, zi_full, rigidlid = []):
     '''solve the vertical structure equation d/dz rhoz d/dz W = -\lambda N_sq W \
        and return set of eigenfunctions W_n and eigenvalues \lambda_n''' 
@@ -75,21 +41,21 @@ def get_vertical_modes_comp(N_sq,rhoz,z, zi_full, rigidlid = []):
     X_sort = sorted(X,key=lambda val: val[0]) # sort by eigenvalue
     return (X_sort, zi)
 
-def get_projections(var_profile, EIGS, NSQ, ZP):
+def get_projections(var_profile, EIGVECS, NSQ, ZP):
     '''project a given profile(prof), onto eigenvalues(EIGS) found using NSQ on grid ZP. 
     returns projection'''
     w_proj = []
-    trunc = EIGS[0][1].shape[0]
+    trunc = EIGVECS[0].shape[0]
     for i in range(0,trunc): 
-         w_proj.append(project_onto_vertical(var_profile, EIGS,NSQ,ZP,i))
+         w_proj.append(project_onto_vertical(var_profile, EIGVECS,NSQ,ZP,i))
     return w_proj
-def get_projection_coeffs(var_profile, EIGS, NSQ, ZP):
+def get_projection_coeffs(var_profile, EIGVECS, NSQ, ZP):
     '''project a given profile(prof), onto eigenvalues(EIGS) found using NSQ on grid ZP. 
     returns projection coefficients'''
     w_proj_coeffs = []
-    trunc = EIGS[0][1].shape[0]
+    trunc = EIGVECS[0].shape[0]
     for i in range(0,trunc): 
-         w_proj_coeffs.append(projection_coeff(var_profile, EIGS,NSQ,ZP,i))
+         w_proj_coeffs.append(projection_coeff(var_profile, EIGVECS,NSQ,ZP,i))
     return w_proj_coeffs
 
 def get_phase_speeds(EIGS):
@@ -101,24 +67,24 @@ def get_phase_speeds(EIGS):
         speeds.append(1./np.sqrt(EIGS[i][0]))
     return speeds
     
-def innerproduct(EIGS,NSQ,ZP,val1,val2):
+def innerproduct(EIGVECS,NSQ,ZP,val1,val2):
     ''' calculate the inner product of vertical normal modes val1 and val2 '''
-    tot = EIGS[val1][1][0]*EIGS[val2][1][0]*NSQ[0]*(ZP[0])
+    tot = EIGVECS[val1][0]*EIGVECS[val2][0]*NSQ[0]*(ZP[0])
     for i in range(1,len(ZP)):
-        tot = tot + EIGS[val1][1][i]*EIGS[val2][1][i]*NSQ[i]*(ZP[i]-ZP[i-1])
+        tot = tot + EIGVECS[val1][i]*EIGVECS[val2][i]*NSQ[i]*(ZP[i]-ZP[i-1])
     return tot
 
-def normalize(EIGS,NSQ, ZP, val1):
+def normalize(EIGVECS,NSQ, ZP, val1):
     ''' ****THIS MIGHT BE THE WRONG THING TO DO****
     returns the normalized eigenfunction for val1''' 
-    coeff = 1/np.sqrt(innerproduct(EIGS,NSQ,ZP, val1, val1))
-    normalized_eig = coeff * EIGS[val1][1][:]
+    coeff = 1/np.sqrt(innerproduct(EIGVECS,NSQ,ZP, val1, val1))
+    normalized_eig = coeff * EIGVECS[val1][:]
     return normalized_eig
 
-def project_onto_vertical(var_profile, EIGS, NSQ, ZP,mode):
+def project_onto_vertical(var_profile, EIGVECS, NSQ, ZP,mode):
     '''project an observed profile onto eigenfunction *mode* '''
-    eigvec=EIGS[mode][1][:]
-    normed_eig = normalize(EIGS,NSQ,ZP, mode)
+    eigvec=EIGVECS[mode][:]
+    normed_eig = normalize(EIGVECS,NSQ,ZP, mode)
     eigvec = normed_eig
     coeff = eigvec[0]*var_profile[0]*NSQ[0]*(ZP[0])
     for i in range(1,len(ZP)):
@@ -126,11 +92,11 @@ def project_onto_vertical(var_profile, EIGS, NSQ, ZP,mode):
     projection = coeff*eigvec
     return projection
 
-def projection_coeff(var_profile, EIGS, NSQ, ZP,mode):
+def projection_coeff(var_profile, EIGVECS, NSQ, ZP,mode):
     '''return the coefficient to
     project an observed profile onto eigenfunction *mode* '''
-    eigvec=EIGS[mode][1][:]
-    normed_eig = normalize(EIGS,NSQ,ZP, mode)
+    eigvec=EIGVECS[mode][:]
+    normed_eig = normalize(EIGVECS,NSQ,ZP, mode)
     eigvec = normed_eig
     coeff = eigvec[0]*var_profile[0]*NSQ[0]*(ZP[0])
     for i in range(1,len(ZP)):
