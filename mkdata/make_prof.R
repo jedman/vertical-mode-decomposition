@@ -18,12 +18,14 @@ cat('output = ',output,'\n',sep='')
 # Define the variables
 vars <- list()
 vars$theta <- list(units='K',longname='Potential temperature',data,name='theta')
+vars$rho <- list( units = 'kg/m^3', longname= 'density', data, name = 'rho') 
 # Fill the data
 nc <- open.ncdf(input)
 get.var.ncdf(nc,'z') -> z
 get.var.ncdf(nc,'time') -> time
 index <- which(time > days_to_omit)
 apply(get.var.ncdf(nc,'theta'   )[,index],1,mean) -> vars$theta$data
+apply(get.var.ncdf(nc,'rho'   )[,index],1,mean) -> vars$rho$data
 close.ncdf(nc)
 
 # Make the NetCDF file

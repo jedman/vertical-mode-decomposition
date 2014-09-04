@@ -6,19 +6,21 @@ module normalmodes
 implicit none
 
 contains
-  subroutine get_vertical_modes(N_sq, zi, dz_vector, lidindex, EIG_VECS_sorted, speeds) 
+  subroutine get_vertical_modes(N_sq, zi, z, dz_vector, lidindex, rho_mean, EIG_VECS_sorted, speeds) 
     use quicksort_mod 
     implicit none 
 
     !in  
-    real, dimension(:), intent(in) :: N_sq, dz_vector, zi
+    real, dimension(:), intent(in) :: N_sq, dz_vector, zi, z, rho_mean
     integer, intent(in) :: lidindex
+    !zi is the location of interfaces, not including lid and bottom surface
+    !rho_mean is on the scalar levels  
     !out 
     real, dimension(lidindex, lidindex), intent(out) :: EIG_VECS_sorted
     real, dimension(lidindex), intent(out) :: speeds  
     ! internal 
     integer, dimension(lidindex) :: eindex 
-    real, dimension(lidindex) :: EIG_VALS   
+    real, dimension(lidindex) :: EIG_VALS, rhoint, ddzrho   
     real, dimension(lidindex, lidindex) :: NDDZ, EIG_VECS 
     integer :: i, j 
     real, parameter :: LID_HEIGHT = 16500. ! would be better to get this from call?  
@@ -27,37 +29,60 @@ contains
     EIG_VALS = 0. 
     NDDZ = 0.
     eindex = 0. 
-!    maybe best to rewrite in terms of dz_vector?      
-    do i = 2, lidindex-1
-        NDDZ(i, i) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i)) - 1./(zi(i)-zi(i-1)))
-        NDDZ(i, i-1) = 1./N_sq(i) * (1./(zi(i) - zi(i-1)))
-        NDDZ(i, i+1) = 1./N_sq(i) * (1./(zi(i+1) - zi(i))) 
-        NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
+    rhoint = 0. 
+    ddzrho = 0. 
+    ! make the new ddzrho factor
+    do i = 1, lidindex
+      rhoint(i) = 0.5*(rho_mean(i) + rho_mean(i+1)) 
     end do
+    ddzrho = 1./rhoint(1:lidindex)*(rho_mean(2:lidindex+1) - rho_mean(1:lidindex))/(z(2:lidindex+1) - z(1:lidindex))
+  !      print *, 'made ddzzrho', ddzrho
+! these are two separate implentations for constant rho_mean  
+!    maybe best to rewrite in terms of dz_vector?      
+!    do i = 2, lidindex-1
+!        NDDZ(i, i) = 1./N_sq(i) * (-1./(zi(i+1) - zi(i)) - 1./(zi(i)-zi(i-1)))
+!        NDDZ(i, i-1) = 1./N_sq(i) * (1./(zi(i) - zi(i-1)))
+!        NDDZ(i, i+1) = 1./N_sq(i) * (1./(zi(i+1) - zi(i))) 
+!        NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
+!    end do
   
-    NDDZ(1, 1) = 1./N_sq(1) * (-1./(zi(2) - zi(1)) - 1./(zi(1)-0.))
-    NDDZ(1, 2) = 1./N_sq(1) * (1./(zi(2) - zi(1)))
-    NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(1, 1:lidindex)
-    NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(zi(lidindex+1) - zi(lidindex))- 1./(zi(lidindex)-zi(lidindex-1)))
-    NDDZ(lidindex,lidindex-1) = -1./N_sq(lidindex) * (-1./(zi(lidindex) - zi(lidindex-1))) 
-    NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(lidindex, 1:lidindex)
+!    NDDZ(1, 1) = 1./N_sq(1) * (-1./(zi(2) - zi(1)) - 1./(zi(1)-0.))
+!    NDDZ(1, 2) = 1./N_sq(1) * (1./(zi(2) - zi(1)))
+!    NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(1, 1:lidindex)
+!    NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(zi(lidindex+1) - zi(lidindex))- 1./(zi(lidindex)-zi(lidindex-1)))
+!    NDDZ(lidindex,lidindex-1) = -1./N_sq(lidindex) * (-1./(zi(lidindex) - zi(lidindex-1))) 
+!    NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(lidindex, 1:lidindex)
 !
-!I'm pretty sure the problem (at least part of it) is that dz_vector is offset from 
-! zi by one, because zi (as defined here) doesn't include the lower interface    
 !     do i = 2, lidindex-1
 !         NDDZ(i, i) = 1./N_sq(i) * (-1./(dz_vector(i+1)) - 1./(dz_vector(i)))
-!         NDDZ(i, i-1) = 1./N_sq(i) * (-1./dz_vector(i))
-!         NDDZ(i, i+1) = 1./N_sq(i) * (-1./dz_vector(i+1)) 
+!         NDDZ(i, i-1) = 1./N_sq(i) * (1./dz_vector(i))
+!         NDDZ(i, i+1) = 1./N_sq(i) * (1./dz_vector(i+1)) 
 !         NDDZ(i, 1:lidindex) = 2./(zi(i+1)-zi(i-1)) * NDDZ(i, 1:lidindex)
 !     end do
 !     NDDZ(1, 1) = 1./N_sq(1) * (-1./(dz_vector(2)) - 1./(dz_vector(1)))
-!     NDDZ(1, 2) = 1./N_sq(1) * (-1./(dz_vector(2)))
+!     NDDZ(1, 2) = 1./N_sq(1) * (1./(dz_vector(2)))
 !     NDDZ(1, 1:lidindex) = 2./(zi(2)-0.) * NDDZ(1, 1:lidindex)
 !     NDDZ(lidindex, lidindex) = 1./N_sq(lidindex)  * (-1./(dz_vector(lidindex+1) ) &
 !          - 1./(dz_vector(lidindex)))
-!     NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (-1./(dz_vector(lidindex) )) 
+!     NDDZ(lidindex,lidindex-1) =  1./N_sq(lidindex) * (1./(dz_vector(lidindex) )) 
 !     NDDZ(lidindex, 1:lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * NDDZ(lidindex, 1:lidindex)
-!   NDDZ = TRANSPOSE(NDDZ)  
+  
+   do i = 2, lidindex-1
+         NDDZ(i, i) = 2./(zi(i+1)-zi(i-1)) * (-1./(dz_vector(i+1)) - 1./(dz_vector(i))) 
+         NDDZ(i, i-1) = 2./(zi(i+1)-zi(i-1)) * (1./dz_vector(i)) - ddzrho(i)/(zi(i+1)-z(i-1))
+         NDDZ(i, i+1) = 2./(zi(i+1)-zi(i-1)) * (1./dz_vector(i+1)) + ddzrho(i)/(zi(i+1)-z(i-1)) 
+         NDDZ(i, 1:lidindex) = 1./N_sq(i) * NDDZ(i, 1:lidindex)
+     end do
+     NDDZ(1, 1) = 2./(zi(2)-0.) * (-1./(dz_vector(2)) - 1./(dz_vector(1)))
+     NDDZ(1, 2) = 2./(zi(2)-0.) * (1./(dz_vector(2))) + ddzrho(1)/(zi(2)-0.)
+     NDDZ(1, 1:lidindex) = 1./N_sq(1) * NDDZ(1, 1:lidindex)
+
+     NDDZ(lidindex, lidindex) = 2./(LID_HEIGHT - zi(lidindex-1)) * (-1./(dz_vector(lidindex+1) ) &
+          - 1./(dz_vector(lidindex)))
+     NDDZ(lidindex,lidindex-1) =  2./(LID_HEIGHT - zi(lidindex-1)) * (1./(dz_vector(lidindex) )) &
+              - ddzrho(lidindex)/(LID_HEIGHT- zi(lidindex -1))
+     NDDZ(lidindex, 1:lidindex) = 1./N_sq(lidindex) * NDDZ(lidindex, 1:lidindex)
+
   call get_eigs(NDDZ, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
       !for testing purposes
     ! EIG_VECS = NDDZ
@@ -72,32 +97,6 @@ contains
      
     ! EIG_VALS = speeds 
   end subroutine get_vertical_modes
-
-  subroutine  sort_eigs(egvecs, egvals, speeds, egvecs_sorted) 
-    implicit none
-    ! in 
-    real, dimension(:,:), intent(in) :: egvecs
-    real, dimension(:), intent(in) :: egvals
-    
-    !out
-    real, dimension(size(egvals)) :: speeds 
-    real, dimension(size(egvecs,1),size(egvecs,2)) :: egvecs_sorted
-    real, dimension(size(egvecs,1), size(egvals)+1) :: TEMP, TEMP2   
-    integer :: i,k 
-    integer :: egsize
-    
-    ! assign values to egsize and temp array (both egvals and egvecs)  
-    egsize = size(egvals) 
-
-    TEMP(1:egsize,1:egsize) = egvecs 
-    !TEMP(1:egsize, egsize +1) = 1./np.sqrt(abs(egvals(:)) 
-    TEMP2 = TEMP  
-     
-    ! now sort rows based on last column (index egsize +1)  
-    ! this is heavily borrowed from quicksort_mod (DAM) 
-    ! actually, maybe just try quicksortmod 
-         
-  end subroutine sort_eigs 
 
   subroutine get_eigs(NDDZ, egvecs, egvals)
   ! this is a wrapper for the LAPACK routine DGEEV, which

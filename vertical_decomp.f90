@@ -8,8 +8,8 @@ real, parameter :: LID_HEIGHT = 16500.
 integer :: nzm, lidindex
 integer ::  i,j 
 real, dimension(:,:), allocatable :: Modes
-real, dimension(:), allocatable :: Eigvals, z, dz_vector, N_sq, theta_prof, zi, dzi_vector, zi2
-integer :: ncid, ThetaVarID, ZVarID, ZiVarID, ZiVarID2, NVarID, ncid_out, DZVarID, DZIVarID
+real, dimension(:), allocatable :: Eigvals, z, dz_vector, N_sq, theta_prof, rho_prof, zi, dzi_vector, zi2
+integer :: ncid, ThetaVarID,RhoVarID,  ZVarID, ZiVarID, ZiVarID2, NVarID, ncid_out, DZVarID, DZIVarID
 integer :: zdimid, zidimid, zidimid2 
 integer, dimension(nf90_max_var_dims) :: ZDimIDs
 integer, dimension(2) :: zdims
@@ -20,18 +20,20 @@ character (len = *), parameter :: OUT_FILE = 'vmd_out.nc'
 !read in the test data 
 call check( nf90_open(path = "test_data.nc", mode = nf90_nowrite, ncid = ncid))
 call check( nf90_inq_varid(ncid, "theta", ThetaVarID))
+call check( nf90_inq_varid(ncid, "rho", RhoVarID))
 call check( nf90_inq_varid(ncid, "z", ZVarID))
 
-call check( nf90_inquire_variable(ncid, ThetaVarId, dimids = ZDimIDs))
+call check( nf90_inquire_variable(ncid, ThetaVarID, dimids = ZDimIDs))
 
 !set the value of nzm by checking length of z
 call check( nf90_inquire_dimension(ncid, ZDimIDs(1), len = nzm))
-allocate(N_sq(nzm-1), dz_vector(nzm), theta_prof(nzm), dzi_vector(nzm+1))
+allocate(N_sq(nzm-1), dz_vector(nzm), theta_prof(nzm),rho_prof(nzm), dzi_vector(nzm+1))
 allocate(z(nzm), zi(nzm-1), zi2(nzm+1))
 
 ! get theta and z from test data
-call check( nf90_get_var(ncid, ThetaVarId, theta_prof))
-call check( nf90_get_var(ncid, ZVarId, z))
+call check( nf90_get_var(ncid, ThetaVarID, theta_prof))
+call check( nf90_get_var(ncid, RhoVarID, rho_prof)) 
+call check( nf90_get_var(ncid, ZVarID, z))
 call check( nf90_close(ncid) )
 
 ! make N_sq and the z interface vector
@@ -57,7 +59,7 @@ print *, 'Lid is at', LID_HEIGHT,'; interface level below lid is', zi(lidindex),
  'lid index is', lidindex
 ! test eigenvector subroutine
 allocate(Modes(lidindex, lidindex), Eigvals(lidindex))
-call get_vertical_modes(N_sq, zi, dz_vector, lidindex, Modes, Eigvals) 
+call get_vertical_modes(N_sq, zi,z, dz_vector, lidindex, rho_prof,  Modes, Eigvals) 
 
 !Eigvals = 1./(sqrt(-Eigvals))
 
