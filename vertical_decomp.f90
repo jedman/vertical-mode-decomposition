@@ -58,21 +58,21 @@ zi2(nzm + 1) = zi(nzm-1) + dzi_vector(nzm)
 print *, 'Lid is at', LID_HEIGHT,'; interface level below lid is', zi(lidindex), & 
  'lid index is', lidindex
 ! test eigenvector subroutine
-allocate(Modes(lidindex, lidindex), Eigvals(lidindex))
+allocate(Modes(lidindex+1, lidindex), Eigvals(lidindex))
 call get_vertical_modes(N_sq, zi,z, dz_vector, lidindex, rho_prof,  Modes, Eigvals) 
 
 !Eigvals = 1./(sqrt(-Eigvals))
 
 call check( nf90_create('eig_vecs.nc', NF90_CLOBBER,  ncid_out) )
-call check( nf90_def_dim(ncid_out, 'zi', lidindex, zidimid))
-call check( nf90_def_dim(ncid_out, 'eigenvalue', lidindex, zdimid)) 
-zdims =(/ zidimid, zdimid/)
-call check( nf90_def_var(ncid_out, 'zi', NF90_DOUBLE, zidimid, ZiVarID)) 
+call check( nf90_def_dim(ncid_out, 'z', lidindex+1, zdimid))
+call check( nf90_def_dim(ncid_out, 'eigenvalue', lidindex, zidimid)) 
+zdims =(/ zdimid, zidimid/)
+call check( nf90_def_var(ncid_out, 'z', NF90_DOUBLE, zdimid, ZVarID)) 
 call check( nf90_def_var(ncid_out, 'eigenvectors', NF90_DOUBLE, zdims, NVarID))
-call check( nf90_def_var(ncid_out, 'eigenvalues', NF90_DOUBLE, zdimid, ZVarID))
+call check( nf90_def_var(ncid_out, 'eigenvalues', NF90_DOUBLE, zdimid, ZiVarID))
 call check(nf90_enddef(ncid_out)) 
-call check(nf90_put_var(ncid_out, ZiVarID, zi(1:lidindex)))
-call check(nf90_put_var(ncid_out, ZVarID, Eigvals))
+call check(nf90_put_var(ncid_out, ZVarID, z(1:lidindex+1)))
+call check(nf90_put_var(ncid_out, ZiVarID, Eigvals))
 call check(nf90_put_var(ncid_out, NVarID, Modes)) 
 call check(nf90_close(ncid_out)) 
 

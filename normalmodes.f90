@@ -6,7 +6,7 @@ module normalmodes
 implicit none
 
 contains
-  subroutine get_vertical_modes(N_sq, zi, z, dz_vector, lidindex, rho_mean, EIG_VECS_sorted, speeds) 
+  subroutine get_vertical_modes(N_sq, zi, z, dz_vector, lidindex, rho_mean, Pmodes, speeds) 
     use quicksort_mod 
     implicit none 
 
@@ -16,9 +16,10 @@ contains
     !zi is the location of interfaces, not including lid and bottom surface
     !rho_mean is on the scalar levels  
     !out 
-    real, dimension(lidindex, lidindex), intent(out) :: EIG_VECS_sorted
+    real, dimension(lidindex+1, lidindex), intent(out) :: Pmodes
     real, dimension(lidindex), intent(out) :: speeds  
     ! internal 
+    real, dimension(lidindex, lidindex) :: EIG_VECS_sorted
     integer, dimension(lidindex) :: eindex 
     real, dimension(lidindex) :: EIG_VALS, rhoint, ddzrho   
     real, dimension(lidindex, lidindex) :: NDDZ, EIG_VECS 
@@ -26,7 +27,9 @@ contains
     real, parameter :: LID_HEIGHT = 16500. ! would be better to get this from call?  
     ! initialize EIG and N arrays
     EIG_VECS = 0. 
-    EIG_VALS = 0. 
+    EIG_VALS = 0.
+    EIG_VECS_sorted = 0. 
+    Pmodes = 0.  
     NDDZ = 0.
     eindex = 0. 
     rhoint = 0. 
@@ -90,13 +93,39 @@ contains
    ! print *, EIG_VALS(33)
    ! print *, 1./sqrt(-EIG_VALS(33))
     speeds = 1./sqrt(abs(EIG_VALS))
-    EIG_VECS_sorted = 0. ! not sorted yet
-    call quicksort(speeds, eindex)  
+    
+  call quicksort(speeds, eindex)  
     EIG_VECS_sorted = EIG_VECS(:, eindex) 
-    !call sort_eigs(EIG_VECS, EIG_VALS, speeds, EIG_VECS_sorted) 
      
-    ! EIG_VALS = speeds 
+  call get_pmodes(EIG_VECS_sorted,rho_mean, zi,LID_HEIGHT, Pmodes)     
+  !print *,  speeds(lidindex) 
+  !print *,  Pmodes(:,lidindex)  
+  do i = 1,lidindex 
+    Pmodes(:,i) = speeds(i)**2 * Pmodes(:,i) 
+  end do 
+   ! why doesn't this scale the whole thing? 
   end subroutine get_vertical_modes
+
+  subroutine  get_pmodes(egvecs, rho_mean, zi, LID_HEIGHT, pmodes) 
+  ! this subroutine takes the W modes, calculated above, and turns them into P modes 
+  real, dimension(:,:), intent(in) :: egvecs
+  real, dimension(:), intent(in) ::  zi, rho_mean
+  real, intent(in) :: LID_HEIGHT  !   
+  
+  real, dimension(size(egvecs,1)+1, size(egvecs,2)), intent(out) :: pmodes 
+  integer :: maxindex, i
+   
+  maxindex = size(egvecs,1) 
+  pmodes = 0. 
+  
+  pmodes(1,:) = (egvecs(1,:) - 0.)/(zi(1) - 0.)    
+    do i = 2, maxindex 
+      pmodes(i,:) = (egvecs(i,:) - egvecs(i-1,:))/(zi(i)-zi(i-1))
+    end do 
+  pmodes(maxindex+1,:) = (0. - egvecs(maxindex,:))/(LID_HEIGHT - zi(maxindex))
+
+  end subroutine get_pmodes
+
 
   subroutine get_eigs(NDDZ, egvecs, egvals)
   ! this is a wrapper for the LAPACK routine DGEEV, which
