@@ -18,7 +18,10 @@ contains
     !out 
     real, dimension(lidindex+1, lidindex), intent(out) :: Pmodes
     real, dimension(lidindex), intent(out) :: speeds  
+    
     ! internal 
+    real, dimension(lidindex+1, lidindex) :: Pmodes_tmp
+    real, dimension(size(z)) :: dz_vector2
     real, dimension(lidindex, lidindex) :: EIG_VECS_sorted
     integer, dimension(lidindex) :: eindex 
     real, dimension(lidindex) :: EIG_VALS, rhoint, ddzrho   
@@ -30,6 +33,7 @@ contains
     EIG_VALS = 0.
     EIG_VECS_sorted = 0. 
     Pmodes = 0.  
+    Pmodes_tmp = 0.
     NDDZ = 0.
     eindex = 0. 
     rhoint = 0. 
@@ -97,13 +101,16 @@ contains
   call quicksort(speeds, eindex)  
     EIG_VECS_sorted = EIG_VECS(:, eindex) 
      
-  call get_pmodes(EIG_VECS_sorted,rho_mean, zi,LID_HEIGHT, Pmodes)     
-  !print *,  speeds(lidindex) 
-  !print *,  Pmodes(:,lidindex)  
-  do i = 1,lidindex 
-    Pmodes(:,i) = speeds(i)**2 * Pmodes(:,i) 
-  end do 
+  call get_pmodes(EIG_VECS_sorted,rho_mean, zi,LID_HEIGHT, Pmodes_tmp)     
+  !do i = 1,lidindex 
+   ! Pmodes(:,i) = speeds(i)**2 * Pmodes(:,i) 
+  !end do 
    ! why doesn't this scale the whole thing? 
+  Pmodes = normalize_eigs(Pmodes_tmp,rho_mean, z) 
+  dz_vector2  = make_dz(z) 
+  do i = 1,size(Pmodes,1)
+       print *, innerproduct(Pmodes(:,i), Pmodes(:,i), rho_mean,  dz_vector2) 
+     end do  
   end subroutine get_vertical_modes
 
   subroutine  get_pmodes(egvecs, rho_mean, zi, LID_HEIGHT, pmodes) 
@@ -179,6 +186,34 @@ contains
 
 ! these are utility functions for calculating various things 
 ! required for the vertical mode decomposition 
+  function normalize_eigs(egvecs,weight,z) result(normed_eigs) 
+   real, dimension (:,:), intent(in) :: egvecs
+   real, dimension(:), intent(in) :: z, weight 
+   real, dimension(size(z)) ::dz
+   real, dimension(size(z)) :: coeffs
+   integer :: i, j , k 
+
+     !out 
+   
+    real, dimension(size(egvecs,1), size(egvecs,1)) :: normed_eigs 
+     dz = make_dz(z)   
+     
+     do i = 1, size(egvecs,1) 
+           coeffs(i) = innerproduct(egvecs(:,i), egvecs(:,i), weight, dz) 
+           normed_eigs(:,i) = 1./coeffs(i) * egvecs(:,i) 
+     end do 
+    
+  end function normalize_eigs
+  
+  function innerproduct(vec1,vec2,weight, dz) result(coeff) 
+      real, dimension(:), intent(in) :: vec1, vec2, weight, dz 
+      integer :: nzm 
+      real  ::  coeff ! inner product 
+      
+      nzm = size(vec1) 
+      coeff = sum(vec1(1:nzm)*vec2(1:nzm)*weight(1:nzm)*dz(1:nzm))  
+  
+  end function innerproduct  
  
   function brunt_vaisala(theta_prof,z, nzm) result(N_sq)  
       !in 
@@ -226,15 +261,17 @@ contains
    
    end function make_dzi 
 
-   function make_dz(z, nzm) result (dz_vector) 
+   function make_dz(z) result (dz_vector) 
      ! this creates the dz_vector used by DAM 
      !in 
      real, dimension(:), intent(in) :: z 
-     integer, intent(in) :: nzm 
+     integer :: nzm 
      !out 
-     real, dimension(nzm) :: dz_vector 
+     real, dimension(size(z)) :: dz_vector 
+
      integer :: k 
      
+     nzm = size(z) 
      dz_vector(1) = 0.5*(z(1)+z(2))
      do k = 2,nzm-1
             dz_vector(k) = 0.5*( z(k+1) - z(k-1) )

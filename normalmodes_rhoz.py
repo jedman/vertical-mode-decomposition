@@ -1,11 +1,12 @@
 # this is a library for calculating the normal mode decomposition of vertical profiles of 
 # atmospheric variables. 
-#depends on numpy 
+#depends on numpy
+# this supersedes normalmodes.py  
 import numpy as np 
 from vstats import * 
 
-def get_vertical_modes_comp(N_sq,rhoz,z, zi_full, rigidlid = []):
-    '''solve the vertical structure equation d/dz rhoz d/dz W = -\lambda N_sq W \
+def get_vertical_modes(N_sq,rhoz,z, zi_full, rigidlid = []):
+    '''solve the vertical structure equation 1/rho  d/dz rhoz d/dz W = -\lambda N_sq W \
        and return set of eigenfunctions W_n and eigenvalues \lambda_n''' 
     if(rigidlid):
         lid = rigidlid

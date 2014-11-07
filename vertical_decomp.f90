@@ -42,7 +42,7 @@ N_sq = brunt_vaisala(theta_prof, z, nzm)
 !call make_zi(z , nzm, zi) 
 zi = zi_locs(z, nzm) ! length nzm - 1 
 dzi_vector = make_dzi(z,nzm) ! length nz + 1
-dz_vector = make_dz(z,nzm) ! length nzm 
+dz_vector = make_dz(z) ! length nzm 
 zi2 = 0. 
 zi2(2:nzm) = zi(1:nzm-1) 
 zi2(nzm + 1) = zi(nzm-1) + dzi_vector(nzm)  
