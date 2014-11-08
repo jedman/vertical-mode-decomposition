@@ -18,6 +18,7 @@ character (len = *), parameter :: OUT_FILE = 'vmd_out.nc'
 
 
 !read in the test data 
+
 call check( nf90_open(path = "test_data.nc", mode = nf90_nowrite, ncid = ncid))
 call check( nf90_inq_varid(ncid, "theta", ThetaVarID))
 call check( nf90_inq_varid(ncid, "rho", RhoVarID))
@@ -26,11 +27,13 @@ call check( nf90_inq_varid(ncid, "z", ZVarID))
 call check( nf90_inquire_variable(ncid, ThetaVarID, dimids = ZDimIDs))
 
 !set the value of nzm by checking length of z
+
 call check( nf90_inquire_dimension(ncid, ZDimIDs(1), len = nzm))
 allocate(N_sq(nzm-1), dz_vector(nzm), theta_prof(nzm),rho_prof(nzm), dzi_vector(nzm+1))
 allocate(z(nzm), zi(nzm-1), zi2(nzm+1))
 
 ! get theta and z from test data
+
 call check( nf90_get_var(ncid, ThetaVarID, theta_prof))
 call check( nf90_get_var(ncid, RhoVarID, rho_prof)) 
 call check( nf90_get_var(ncid, ZVarID, z))

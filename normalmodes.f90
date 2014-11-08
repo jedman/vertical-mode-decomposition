@@ -21,7 +21,6 @@ contains
     
     ! internal 
     real, dimension(lidindex+1, lidindex) :: Pmodes_tmp
-    real, dimension(size(z)) :: dz_vector2
     real, dimension(lidindex, lidindex) :: EIG_VECS_sorted
     integer, dimension(lidindex) :: eindex 
     real, dimension(lidindex) :: EIG_VALS, rhoint, ddzrho   
@@ -89,6 +88,7 @@ contains
      NDDZ(lidindex,lidindex-1) =  2./(LID_HEIGHT - zi(lidindex-1)) * (1./(dz_vector(lidindex) )) &
               - ddzrho(lidindex)/(LID_HEIGHT- zi(lidindex -1))
      NDDZ(lidindex, 1:lidindex) = 1./N_sq(lidindex) * NDDZ(lidindex, 1:lidindex)
+   
 
   call get_eigs(NDDZ, EIG_VECS, EIG_VALS) ! call the wrapper for LAPACK 
       !for testing purposes
@@ -101,16 +101,16 @@ contains
   call quicksort(speeds, eindex)  
     EIG_VECS_sorted = EIG_VECS(:, eindex) 
      
-  call get_pmodes(EIG_VECS_sorted,rho_mean, zi,LID_HEIGHT, Pmodes_tmp)     
+  call get_pmodes(EIG_VECS_sorted,rho_mean, zi, LID_HEIGHT, Pmodes)     
   !do i = 1,lidindex 
-   ! Pmodes(:,i) = speeds(i)**2 * Pmodes(:,i) 
+    !Pmodes(:,i) = speeds(i)**2 * Pmodes(:,i) 
   !end do 
    ! why doesn't this scale the whole thing? 
-  Pmodes = normalize_eigs(Pmodes_tmp,rho_mean, z) 
-  dz_vector2  = make_dz(z) 
-  do i = 1,size(Pmodes,1)
-       print *, innerproduct(Pmodes(:,i), Pmodes(:,i), rho_mean,  dz_vector2) 
-     end do  
+   Pmodes = normalize_eigs(Pmodes,rho_mean, dz_vector) 
+
+    !do i = 4, size(Pmodes(:,1))
+    !    print *, innerproduct(Pmodes(:,i), Pmodes(:,i-3), rho_mean,  dz_vector)
+    !end do 
   end subroutine get_vertical_modes
 
   subroutine  get_pmodes(egvecs, rho_mean, zi, LID_HEIGHT, pmodes) 
@@ -186,32 +186,34 @@ contains
 
 ! these are utility functions for calculating various things 
 ! required for the vertical mode decomposition 
-  function normalize_eigs(egvecs,weight,z) result(normed_eigs) 
+ 
+  function normalize_eigs(egvecs,weight,dz) result(normed_eigs) 
    real, dimension (:,:), intent(in) :: egvecs
-   real, dimension(:), intent(in) :: z, weight 
-   real, dimension(size(z)) ::dz
-   real, dimension(size(z)) :: coeffs
+   real, dimension(:), intent(in) :: dz, weight 
+   real :: coeff
    integer :: i, j , k 
 
      !out 
    
-    real, dimension(size(egvecs,1), size(egvecs,1)) :: normed_eigs 
-     dz = make_dz(z)   
+    real, dimension(size(egvecs,1), size(egvecs,1)) :: normed_eigs   
      
      do i = 1, size(egvecs,1) 
-           coeffs(i) = innerproduct(egvecs(:,i), egvecs(:,i), weight, dz) 
-           normed_eigs(:,i) = 1./coeffs(i) * egvecs(:,i) 
+           coeff = 0. 
+           coeff = 1./sqrt(innerproduct(egvecs(:,i), egvecs(:,i), weight, dz)) 
+           normed_eigs(:,i) = coeff * egvecs(:,i) 
      end do 
     
   end function normalize_eigs
   
   function innerproduct(vec1,vec2,weight, dz) result(coeff) 
       real, dimension(:), intent(in) :: vec1, vec2, weight, dz 
-      integer :: nzm 
+      integer :: nzm, i 
       real  ::  coeff ! inner product 
-      
-      nzm = size(vec1) 
-      coeff = sum(vec1(1:nzm)*vec2(1:nzm)*weight(1:nzm)*dz(1:nzm))  
+      coeff = 0. 
+      nzm = size(vec1,1)
+      do i = 1,nzm 
+         coeff = coeff + vec1(i)*vec2(i)*weight(i)*dz(i)  
+      end do
   
   end function innerproduct  
  
@@ -225,7 +227,8 @@ contains
 
       N_sq = 9.81/(0.5*(theta_prof(2:nzm) + theta_prof(1:nzm-1))) & 
          *(theta_prof(2:nzm) - theta_prof(1:nzm-1))/(z(2:nzm)-z(1:nzm-1))
-   
+   !   N_sq = 9.81*(theta_prof(2:nzm) - theta_prof(1:nzm-1))/((z(2:nzm)-z(1:nzm-1))*theta_prof(1:nzm-1)) 
+
    end function brunt_vaisala
    
    function zi_locs(z, nzm) result(zi)
