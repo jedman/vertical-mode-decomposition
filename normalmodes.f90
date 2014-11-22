@@ -27,7 +27,6 @@ contains
     real, dimension(lidindex, lidindex) :: NDDZ, EIG_VECS
     real, dimension(:), allocatable :: rhoN, ddzrhoN
     integer :: i, j, nzm
-    real, parameter :: LID_HEIGHT = 16500. ! would be better to get this from call?
     ! initialize EIG and N arrays
     nzm = size(z)
 
@@ -42,15 +41,13 @@ contains
     rhoN = 0.
     eindex = 0.
     ddzrhoN = 0.
-
     ! make the new ddzrhoN^2 factor
-    rhoN = (rho_mean * N_sq)**(-1)
+    rhoN = 1./(rho_mean * N_sq)
     do i = 2, nzm-1
       ddzrhoN(i) = 0.5*(rhoN(i+1) - rhoN(i-1))/dzi_vector(i)
     end do
     ddzrhoN(1) = (rhoN(2) - rhoN(1))/(dzi_vector(2))        ! could do this better
     ddzrhoN(nzm) = (rhoN(nzm) - rhoN(nzm-1))/(dzi_vector(nzm))
-
     do i = 2, lidindex-1
 
       NDDZ(i, i) = 1./(N_sq(i) * dz_vector(i)) * (-1./dzi_vector(i+1)-1./dzi_vector(i))
@@ -250,7 +247,7 @@ contains
 
      external DGEEV ! procedure defined in LAPACK
 
-    lwork = size(NDDZ,1)*20
+    lwork = size(NDDZ,1)*50
     allocate(WORK(lwork))
 
     A = NDDZ ! make a copy so DGEEV doesn't overwrite
@@ -265,7 +262,6 @@ contains
     info = 0.
     jobvl = 'N'
     jobvr = 'V' ! compute right eigenvectors only
-
 
       call DGEEV (jobvl, jobvr, n, A, lda, WR, WI, VL, ldvl, &
          VR, ldvr, WORK, lwork, info)
@@ -312,19 +308,20 @@ contains
       end do
 
   end function innerproduct
-
-  function brunt_vaisala(theta_prof,z, nzm) result(N_sq)
+  function brunt_vaisala(theta_prof,dzi_vector, nzm) result(N_sq)
       !in
       real, dimension(:), intent(in) :: theta_prof
-      real, dimension(:), intent(in) :: z
+      real, dimension(:), intent(in) :: dzi_vector
       integer, intent(in) :: nzm
       !out
-      real, dimension(nzm-1) :: N_sq
-
-      N_sq = 9.81/(0.5*(theta_prof(2:nzm) + theta_prof(1:nzm-1))) &
-         *(theta_prof(2:nzm) - theta_prof(1:nzm-1))/(z(2:nzm)-z(1:nzm-1))
-   !   N_sq = 9.81*(theta_prof(2:nzm) - theta_prof(1:nzm-1))/((z(2:nzm)-z(1:nzm-1))*theta_prof(1:nzm-1))
-
+      real, dimension(nzm) :: N_sq
+     ! make N_sq on the scalar levels
+     ! N_sq = 9.81/(0.5*(theta_prof(2:nzm) + theta_prof(1:nzm-1))) &
+      !   *(theta_prof(2:nzm) - theta_prof(1:nzm-1))/(z(2:nzm)-z(1:nzm-1))
+      N_sq(2:nzm-1) = 9.81/(dzi_vector(2:nzm-1)*theta_prof(2:nzm-1))*0.5*(theta_prof(3:nzm) &
+               - theta_prof(1:nzm-2))
+      N_sq(nzm) = N_sq(nzm-1)
+      N_sq(1) = N_sq(2)
    end function brunt_vaisala
 
    function zi_locs(z, nzm) result(zi)

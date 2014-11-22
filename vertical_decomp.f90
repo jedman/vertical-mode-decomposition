@@ -4,7 +4,7 @@ program vertical_mode_decomp
 
 implicit none
 
-real, parameter :: LID_HEIGHT = 16500.
+real, parameter :: LID_HEIGHT = 33000.
 integer :: nzm, lidindex
 integer ::  i,j
 real, dimension(:,:), allocatable :: Modes
@@ -39,8 +39,9 @@ call check( nf90_get_var(ncid, RhoVarID, rho_prof))
 call check( nf90_get_var(ncid, ZVarID, z))
 call check( nf90_close(ncid) )
 
+dzi_vector = make_dzi(z,nzm) ! length nz + 1
 ! make N_sq and the z interface vector
-N_sq = brunt_vaisala(theta_prof, z, nzm)
+N_sq = brunt_vaisala(theta_prof, dzi_vector, nzm)
 !N_sq = 0.0001 ! constant N_sq for testing
 !call make_zi(z , nzm, zi)
 zi = zi_locs(z, nzm) ! length nzm - 1
@@ -57,7 +58,7 @@ zi2(nzm + 1) = zi(nzm-1) + dzi_vector(nzm) ! zi in DAM
 !          exit
 !       end if
  !end do
-
+lidindex = size(z) 
  do i = 1, nzm
   if (LID_HEIGHT <=  z(i)) then
     lidindex = i
@@ -75,14 +76,14 @@ call get_vertical_pmodes(N_sq, z, dz_vector, dzi_vector, lidindex, rho_prof,  Mo
 
 call check( nf90_create('eig_vecs.nc', NF90_CLOBBER,  ncid_out) )
 
-call check( nf90_def_dim(ncid_out, 'z', lidindex+1, zdimid))
+call check( nf90_def_dim(ncid_out, 'z', lidindex , zdimid))
 call check( nf90_def_dim(ncid_out, 'eigenvalue', lidindex, zidimid))
 zdims = (/ zdimid, zidimid/)
 call check( nf90_def_var(ncid_out, 'z', NF90_DOUBLE, zdimid, ZVarID))
 call check( nf90_def_var(ncid_out, 'eigenvectors', NF90_DOUBLE, zdims, NVarID))
 call check( nf90_def_var(ncid_out, 'eigenvalues', NF90_DOUBLE, zdimid, ZiVarID))
 call check(nf90_enddef(ncid_out))
-call check(nf90_put_var(ncid_out, ZVarID, z(1:lidindex+1)))
+call check(nf90_put_var(ncid_out, ZVarID, z(1:lidindex)))
 call check(nf90_put_var(ncid_out, ZiVarID, Eigvals))
 call check(nf90_put_var(ncid_out, NVarID, Modes))
 call check(nf90_close(ncid_out))
@@ -95,7 +96,7 @@ call check( nf90_def_dim(ncid_out, "zi", nzm-1, zidimid))
 call check( nf90_def_dim(ncid_out, "z", nzm, zdimid))
 call check( nf90_def_dim(ncid_out,"zi2", nzm+1, zidimid2))
 
-call check( nf90_def_var(ncid_out, "N_sq", NF90_DOUBLE, zidimid, NVarID))
+call check( nf90_def_var(ncid_out, "N_sq", NF90_DOUBLE, zdimid, NVarID))
 call check( nf90_def_var(ncid_out, "zi", NF90_DOUBLE, zidimid, ZiVarID))
 call check( nf90_def_var(ncid_out, "z", NF90_DOUBLE, zdimid, ZVarID))
 call check( nf90_def_var(ncid_out, "zi2", NF90_DOUBLE, zidimid2, ZiVarID2))
